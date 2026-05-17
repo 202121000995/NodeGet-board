@@ -28,6 +28,9 @@ const TASK_TYPES = new Set([
   "ip",
   "read_config",
   "edit_config",
+  "version",
+  "http_request",
+  "self_update",
 ]);
 const CRONTAB_TYPES = new Set(["read", "write", "delete"]);
 const NODE_GET_TYPES = new Set(["list_all_agent_uuid", "get_rt_pool"]);
