@@ -18,6 +18,7 @@ export interface ComposerDraft {
   sending: boolean;
   responseText: string;
   responseMeta: string;
+  responseMethod: string;
 }
 
 export interface StreamSubscriptionState {

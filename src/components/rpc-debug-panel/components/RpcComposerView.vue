@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { Copy, Send, Trash2 } from "lucide-vue-next";
+import { Copy, FileText, Send, Trash2 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
+import { Badge } from "@/components/ui/badge";
 import { useBackendStore } from "@/composables/useBackendStore";
 import { getWsConnection } from "@/composables/useWsConnection";
 import {
@@ -10,6 +11,7 @@ import {
   useRpcDebugStore,
 } from "../rpcDebugStore";
 import { backendKey, methodCatalog, methodHints } from "../helpers";
+import { buildRpcMethodParams } from "../rpcMethodCatalog";
 import type { ComposerDraft } from "../types";
 
 interface ComposerSourceRecord {
@@ -47,6 +49,7 @@ const composer = reactive<ComposerDraft>({
   sending: false,
   responseText: "尚未发送请求",
   responseMeta: "等待发送",
+  responseMethod: "",
 });
 
 const selectedBackend = computed(() =>
@@ -72,6 +75,10 @@ const sourceRecordLinkText = computed(() =>
   sourceRecordIndex.value ? `#${sourceRecordIndex.value}` : "#?",
 );
 
+const responseMethodTag = computed(
+  () => composer.responseMethod || composer.method.trim() || "-",
+);
+
 watch(
   currentBackendKey,
   (key) => {
@@ -94,6 +101,7 @@ watch(
     composer.paramsText = formatRawComposerPayload(req?.params ?? {});
     composer.responseText = "尚未发送请求";
     composer.responseMeta = "等待发送";
+    composer.responseMethod = "";
     composerSource.value = {
       recordId: record.recordId,
       method: record.method,
@@ -127,6 +135,7 @@ function clearComposerDraft() {
   composer.paramsText = "";
   composer.responseText = "尚未发送请求";
   composer.responseMeta = "等待发送";
+  composer.responseMethod = "";
   composerSource.value = null;
   methodFocused.value = false;
 }
@@ -138,28 +147,17 @@ function showSourceRecord() {
 
 function formatRawComposerPayload(value: unknown) {
   if (typeof value === "string") return JSON.stringify(value);
-  return JSON.stringify(value, null, debugStore.settings.formatJson ? 2 : 0);
+  return (
+    JSON.stringify(value, null, debugStore.settings.formatJson ? 2 : 0) ?? ""
+  );
 }
 
 function fillDefaultParams() {
   const token = selectedBackend.value?.token ?? "";
   const method = composer.method.trim();
-  if (
-    [
-      "nodeget-server_hello",
-      "nodeget-server_version",
-      "nodeget-server_uuid",
-    ].includes(method)
-  ) {
-    composer.paramsText = "[]";
-    return;
-  }
-  if (method === "nodeget-server_stream_log") {
-    composer.paramsText = JSON.stringify(
-      { token, log_filter: "info,rpc=debug" },
-      null,
-      2,
-    );
+  const templateParams = buildRpcMethodParams(method, token);
+  if (templateParams !== undefined) {
+    composer.paramsText = formatRawComposerPayload(templateParams);
     return;
   }
   composer.paramsText = JSON.stringify({ token }, null, 2);
@@ -179,10 +177,12 @@ async function sendComposerRequest() {
   }
   composer.sending = true;
   composer.responseMeta = "发送中";
+  const method = composer.method.trim();
+  composer.responseMethod = method;
   const startedAt = performance.now();
   try {
     const result = await getWsConnection(backend.url).call<unknown>(
-      composer.method.trim(),
+      method,
       parseComposerParams(),
       10000,
       {
@@ -339,12 +339,21 @@ async function sendComposerRequest() {
             <Copy class="size-4" />
             复制 JSON
           </button>
+          <button
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+            type="button"
+            :disabled="composer.sending"
+            @click="fillDefaultParams"
+          >
+            <FileText class="size-4" />
+            填入模板
+          </button>
         </div>
       </div>
     </section>
 
-    <section class="rounded-lg border p-5">
-      <div class="mb-5 flex items-start justify-between gap-3">
+    <section class="flex flex-col rounded-lg border p-5">
+      <div class="flex-none mb-5 flex items-start justify-between gap-3">
         <div>
           <h2 class="font-semibold">响应结果</h2>
           <p class="mt-1 text-sm text-muted-foreground">
@@ -360,10 +369,17 @@ async function sendComposerRequest() {
           复制结果
         </button>
       </div>
+      <Badge
+        variant="outline"
+        class="mb-3 max-w-full flex-none border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/35 dark:text-blue-200"
+      >
+        <span class="font-medium">method:</span>
+        <span class="truncate font-mono">{{ responseMethodTag }}</span>
+      </Badge>
       <textarea
         :value="composer.responseText"
         readonly
-        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 min-h-[360px] resize-none font-mono"
+        class="flex w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 h-full resize-none font-mono"
       />
     </section>
   </div>

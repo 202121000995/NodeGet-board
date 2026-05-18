@@ -1,6 +1,7 @@
 import type { Backend } from "@/composables/useBackendStore";
 import type { RpcDebugRecord } from "./rpcDebugStore";
 import type { RpcDebugTab } from "./types";
+export { methodCatalog, methodHints } from "./rpcMethodCatalog";
 
 export const rpcDebugTabs: RpcDebugTab[] = [
   { key: "network", label: "网络" },
@@ -9,35 +10,6 @@ export const rpcDebugTabs: RpcDebugTab[] = [
   { key: "auth", label: "鉴权" },
   { key: "settings", label: "设置" },
 ];
-
-export const methodCatalog = [
-  "nodeget-server_hello",
-  "nodeget-server_version",
-  "nodeget-server_uuid",
-  "nodeget-server_list_all_agent_uuid",
-  "nodeget-server_read_config",
-  "nodeget-server_edit_config",
-  "nodeget-server_database_storage",
-  "nodeget-server_log",
-  "nodeget-server_stream_log",
-  "token_get",
-  "token_list_all_tokens",
-  "kv_get_value",
-  "kv_set_value",
-  "task_create_task",
-  "task_query",
-  "agent_query_static",
-  "agent_query_dynamic_summary",
-];
-
-export const methodHints: Record<string, string> = {
-  "nodeget-server_hello": "无鉴权",
-  "nodeget-server_read_config": "SuperToken",
-  "nodeget-server_stream_log": "订阅",
-  token_get: "Token",
-  token_list_all_tokens: "SuperToken",
-  task_query: "Task",
-};
 
 export function backendKey(backend: Backend) {
   return `${backend.url}::${backend.token}`;
