@@ -26,20 +26,20 @@ let nativeWebSocket: NativeWebSocketCtor | null = null;
 let installed = false;
 let nextConnectionId = 1;
 
-const emit = (event: RpcDebugWebSocketEvent) => {
+function emit(event: RpcDebugWebSocketEvent) {
   listeners.forEach((listener) => listener(event));
-};
+}
 
-export const addRpcDebugWebSocketListener = (
+export function addRpcDebugWebSocketListener(
   listener: RpcDebugWebSocketListener,
-) => {
+) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
-};
+}
 
-export const installRpcDebugWebSocketPatch = () => {
+export function installRpcDebugWebSocketPatch() {
   if (installed || typeof window === "undefined") return;
 
   nativeWebSocket = window.WebSocket;
@@ -121,11 +121,11 @@ export const installRpcDebugWebSocketPatch = () => {
 
   window.WebSocket = DebugWebSocket as NativeWebSocketCtor;
   installed = true;
-};
+}
 
-export const uninstallRpcDebugWebSocketPatch = () => {
+export function uninstallRpcDebugWebSocketPatch() {
   if (!installed || !nativeWebSocket || typeof window === "undefined") return;
   window.WebSocket = nativeWebSocket;
   nativeWebSocket = null;
   installed = false;
-};
+}

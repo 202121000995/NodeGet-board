@@ -5,12 +5,12 @@ import { downloadText } from "../helpers";
 
 const debugStore = useRpcDebugStore();
 
-const exportRecords = () => {
+function exportRecords() {
   downloadText(
     `nodeget-rpc-debug-${Date.now()}.json`,
     debugStore.exportRecords(),
   );
-};
+}
 </script>
 
 <template>

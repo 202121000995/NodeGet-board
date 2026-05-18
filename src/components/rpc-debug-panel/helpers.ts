@@ -39,10 +39,11 @@ export const methodHints: Record<string, string> = {
   task_query: "Task",
 };
 
-export const backendKey = (backend: Backend) =>
-  `${backend.url}::${backend.token}`;
+export function backendKey(backend: Backend) {
+  return `${backend.url}::${backend.token}`;
+}
 
-export const statusClass = (status: string) => {
+export function statusClass(status: string) {
   if (status === "success" || status === "streaming") {
     return "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300";
   }
@@ -53,9 +54,9 @@ export const statusClass = (status: string) => {
     return "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300";
   }
   return "bg-muted text-muted-foreground ring-border";
-};
+}
 
-export const kindText = (record: RpcDebugRecord) => {
+export function kindText(record: RpcDebugRecord) {
   const map: Record<string, string> = {
     call: "调用",
     subscription: "订阅",
@@ -64,9 +65,9 @@ export const kindText = (record: RpcDebugRecord) => {
     raw: "原始",
   };
   return map[record.kind] ?? record.kind;
-};
+}
 
-export const statusText = (record: RpcDebugRecord) => {
+export function statusText(record: RpcDebugRecord) {
   const map: Record<string, string> = {
     pending: "等待中",
     success: "成功",
@@ -76,16 +77,17 @@ export const statusText = (record: RpcDebugRecord) => {
     raw: "原始",
   };
   return map[record.status] ?? record.status;
-};
+}
 
-export const timeText = (timestamp: number) =>
-  new Intl.DateTimeFormat("zh-CN", {
+export function timeText(timestamp: number) {
+  return new Intl.DateTimeFormat("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
   }).format(timestamp);
+}
 
-export const downloadText = (filename: string, content: string) => {
+export function downloadText(filename: string, content: string) {
   const blob = new Blob([content], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -93,4 +95,4 @@ export const downloadText = (filename: string, content: string) => {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
-};
+}

@@ -43,15 +43,15 @@ const latencyLabel = computed(() => {
   return latest?.durationMs != null ? `${latest.durationMs}ms` : "--";
 });
 
-const copyText = async (text: string, message = "已复制") => {
+async function copyText(text: string, message = "已复制") {
   await navigator.clipboard.writeText(text);
   toast.success(message);
-};
+}
 
-const handleRecordEdit = (record: RpcDebugRecord) => {
+function handleRecordEdit(record: RpcDebugRecord) {
   pendingComposerRecord.value = record;
   activeTab.value = "composer";
-};
+}
 </script>
 
 <template>

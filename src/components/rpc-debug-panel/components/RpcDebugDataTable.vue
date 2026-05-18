@@ -48,10 +48,10 @@ const columnCount = computed(
   () => table.getAllLeafColumns().length || props.columns.length || 1,
 );
 
-const metaClass = (meta: unknown, key: "headerClass" | "cellClass") => {
+function metaClass(meta: unknown, key: "headerClass" | "cellClass") {
   if (!meta || typeof meta !== "object") return "";
   return String((meta as Record<string, unknown>)[key] ?? "");
-};
+}
 </script>
 
 <template>

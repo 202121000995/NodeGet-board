@@ -101,24 +101,24 @@ const networkColumns = computed<ColumnDef<RpcDebugRecord>[]>(() => [
   },
 ]);
 
-const selectRecord = (record: RpcDebugRecord) => {
+function selectRecord(record: RpcDebugRecord) {
   debugStore.selectedRecordId.value = record.recordId;
-};
+}
 
-const closeDrawer = () => {
+function closeDrawer() {
   debugStore.selectedRecordId.value = null;
-};
+}
 
-const exportRecords = () => {
+function exportRecords() {
   downloadText(
     `nodeget-rpc-debug-${Date.now()}.json`,
     debugStore.exportRecords(),
   );
-};
+}
 
-const relayCopy = (text: string, message?: string) => {
+function relayCopy(text: string, message?: string) {
   emit("copy", text, message);
-};
+}
 </script>
 
 <template>

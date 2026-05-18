@@ -49,14 +49,14 @@ onBeforeUnmount(() => {
   }
 });
 
-const startSubscription = async () => {
+async function startSubscription() {
   logsPanel.defaultLevel.value = selectedLevel.value;
   await logsPanel.connect();
-};
+}
 
-const stopSubscription = async () => {
+async function stopSubscription() {
   await logsPanel.stop();
-};
+}
 
 const logColumns = computed<ColumnDef<LogEntry>[]>(() => [
   {

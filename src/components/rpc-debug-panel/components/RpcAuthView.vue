@@ -17,13 +17,13 @@ const permissionStore = usePermissionStore();
 
 const backendOptions = computed(() => backendStore.backends.value);
 
-const refreshPermission = async () => {
+async function refreshPermission() {
   await permissionStore.refreshByBackend(backendStore.currentBackend.value);
-};
+}
 
-const copyBackendToken = (backend: Backend) => {
+function copyBackendToken(backend: Backend) {
   emit("copy", backend.token, "Token 已复制");
-};
+}
 
 const backendColumns = computed<ColumnDef<Backend>[]>(() => [
   {

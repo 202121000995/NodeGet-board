@@ -92,17 +92,25 @@ const sensitiveKeys = new Set([
   "token_secret",
 ]);
 
-const methodTokenInFirstArrayParam = (method: string) =>
-  /^(agent_|task_|kv_|crontab_|js-|js_|token_|nodeget-server_)/.test(method);
+function methodTokenInFirstArrayParam(method: string) {
+  return /^(agent_|task_|kv_|crontab_|js-|js_|token_|nodeget-server_)/.test(
+    method,
+  );
+}
 
-const now = () => Date.now();
+function now() {
+  return Date.now();
+}
 
-const makeRecordId = () => `rpc-debug-${nextRecordId++}`;
+function makeRecordId() {
+  return `rpc-debug-${nextRecordId++}`;
+}
 
-const pendingKey = (connectionId: number, id: unknown) =>
-  `${connectionId}:${String(id)}`;
+function pendingKey(connectionId: number, id: unknown) {
+  return `${connectionId}:${String(id)}`;
+}
 
-const parseFrame = (data: unknown): unknown => {
+function parseFrame(data: unknown): unknown {
   if (typeof data !== "string") return null;
   const text = data.trim();
   if (!text) return null;
@@ -111,15 +119,15 @@ const parseFrame = (data: unknown): unknown => {
   } catch {
     return null;
   }
-};
+}
 
-const looksLikeJsonRpc = (value: unknown): value is JsonRpcLike => {
+function looksLikeJsonRpc(value: unknown): value is JsonRpcLike {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const msg = value as JsonRpcLike;
   return msg.jsonrpc === "2.0" || "method" in msg || "id" in msg;
-};
+}
 
-export const maskDebugValue = (value: unknown, method = ""): unknown => {
+export function maskDebugValue(value: unknown, method = ""): unknown {
   if (!settings.maskTokens) return value;
   if (Array.isArray(value)) {
     return value.map((item, index) =>
@@ -139,15 +147,15 @@ export const maskDebugValue = (value: unknown, method = ""): unknown => {
       : maskDebugValue(item, method);
   }
   return masked;
-};
+}
 
-export const maskToken = (value: unknown) => {
+export function maskToken(value: unknown) {
   if (typeof value !== "string") return "••••••";
   if (value.length <= 8) return "••••••";
   return `${value.slice(0, 4)}••••••${value.slice(-4)}`;
-};
+}
 
-export const formatDebugPayload = (value: unknown, method = "") => {
+export function formatDebugPayload(value: unknown, method = "") {
   const safeValue = maskDebugValue(value, method);
   if (typeof safeValue === "string") return safeValue;
   try {
@@ -155,31 +163,31 @@ export const formatDebugPayload = (value: unknown, method = "") => {
   } catch {
     return String(safeValue);
   }
-};
+}
 
-const trimRecords = () => {
+function trimRecords() {
   const overflow = records.value.length - settings.maxRecords;
   if (overflow > 0) records.value.splice(0, overflow);
-};
+}
 
-const appendRecord = (record: RpcDebugRecord) => {
+function appendRecord(record: RpcDebugRecord) {
   if (isPaused.value) return;
   records.value.push(record);
   trimRecords();
-};
+}
 
-const updateRecord = (recordId: string, patch: Partial<RpcDebugRecord>) => {
+function updateRecord(recordId: string, patch: Partial<RpcDebugRecord>) {
   if (isPaused.value) return;
   const record = records.value.find((item) => item.recordId === recordId);
   if (!record) return;
   Object.assign(record, patch);
-};
+}
 
-const recordOutgoingRpc = (
+function recordOutgoingRpc(
   connectionId: number,
   url: string,
   msg: JsonRpcLike,
-) => {
+) {
   const method =
     typeof msg.method === "string" ? msg.method : "JSON-RPC Request";
   const id = msg.id == null ? undefined : String(msg.id);
@@ -200,13 +208,13 @@ const recordOutgoingRpc = (
 
   appendRecord(record);
   if (id != null) pendingByRpcId.set(pendingKey(connectionId, id), recordId);
-};
+}
 
-const recordIncomingRpc = (
+function recordIncomingRpc(
   connectionId: number,
   url: string,
   msg: JsonRpcLike,
-) => {
+) {
   const id = msg.id == null ? undefined : String(msg.id);
   const method =
     typeof msg.method === "string" ? msg.method : "JSON-RPC Response";
@@ -268,14 +276,14 @@ const recordIncomingRpc = (
     direction: "incoming",
     note: "未找到匹配请求",
   });
-};
+}
 
-const recordRawFrame = (
+function recordRawFrame(
   connectionId: number,
   url: string,
   direction: "incoming" | "outgoing",
   data: unknown,
-) => {
+) {
   if (!settings.captureRawFrames) return;
   appendRecord({
     recordId: makeRecordId(),
@@ -290,13 +298,9 @@ const recordRawFrame = (
     direction,
     note: "非 JSON-RPC 帧",
   });
-};
+}
 
-const handleOutgoingFrame = (
-  connectionId: number,
-  url: string,
-  data: unknown,
-) => {
+function handleOutgoingFrame(connectionId: number, url: string, data: unknown) {
   const parsed = parseFrame(data);
   if (Array.isArray(parsed)) {
     parsed.forEach((item) => {
@@ -309,13 +313,9 @@ const handleOutgoingFrame = (
     return;
   }
   recordRawFrame(connectionId, url, "outgoing", data);
-};
+}
 
-const handleIncomingFrame = (
-  connectionId: number,
-  url: string,
-  data: unknown,
-) => {
+function handleIncomingFrame(connectionId: number, url: string, data: unknown) {
   const parsed = parseFrame(data);
   if (Array.isArray(parsed)) {
     parsed.forEach((item) => {
@@ -328,17 +328,17 @@ const handleIncomingFrame = (
     return;
   }
   recordRawFrame(connectionId, url, "incoming", data);
-};
+}
 
-const markConnectionState = (
+function markConnectionState(
   connectionId: number,
   patch: Partial<RpcDebugConnection>,
-) => {
+) {
   const connection = connections.get(connectionId);
   if (connection) Object.assign(connection, patch);
-};
+}
 
-const handlePatchEvent = (event: RpcDebugWebSocketEvent) => {
+function handlePatchEvent(event: RpcDebugWebSocketEvent) {
   if (event.type === "connection") {
     if (event.state === "connecting") {
       connections.set(event.connectionId, {
@@ -378,27 +378,28 @@ const handlePatchEvent = (event: RpcDebugWebSocketEvent) => {
   }
 
   handleIncomingFrame(event.connectionId, event.url, event.data);
-};
+}
 
-export const registerRpcDebugEventHandler = () =>
-  addRpcDebugWebSocketListener(handlePatchEvent);
+export function registerRpcDebugEventHandler() {
+  return addRpcDebugWebSocketListener(handlePatchEvent);
+}
 
-export const clearRpcDebugRecords = () => {
+export function clearRpcDebugRecords() {
   records.value = [];
   pendingByRpcId.clear();
   selectedRecordId.value = null;
-};
+}
 
-export const exportRpcDebugRecords = () => {
+export function exportRpcDebugRecords() {
   const data = records.value.map((record) => ({
     ...record,
     request: maskDebugValue(record.request, record.method),
     response: maskDebugValue(record.response, record.method),
   }));
   return JSON.stringify(data, null, 2);
-};
+}
 
-export const useRpcDebugStore = () => {
+export function useRpcDebugStore() {
   const selectedRecord = computed(() =>
     records.value.find((item) => item.recordId === selectedRecordId.value),
   );
@@ -419,4 +420,4 @@ export const useRpcDebugStore = () => {
     clear: clearRpcDebugRecords,
     exportRecords: exportRpcDebugRecords,
   };
-};
+}

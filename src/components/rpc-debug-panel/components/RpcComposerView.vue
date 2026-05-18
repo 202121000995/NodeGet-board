@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { Copy, Send } from "lucide-vue-next";
+import { Copy, Send, Trash2 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { useBackendStore } from "@/composables/useBackendStore";
 import { getWsConnection } from "@/composables/useWsConnection";
@@ -79,24 +79,34 @@ watch(
   { immediate: true },
 );
 
-const copyText = async (text: string, message?: string) => {
+async function copyText(text: string, message?: string) {
   await navigator.clipboard.writeText(text);
   emit("copied", message);
-};
+}
 
-const delayHideMethodSuggestions = () => {
+function delayHideMethodSuggestions() {
   window.setTimeout(() => {
     methodFocused.value = false;
   }, 140);
-};
+}
 
-const selectMethodSuggestion = (method: string) => {
+function selectMethodSuggestion(method: string) {
   composer.method = method;
   methodFocused.value = false;
   fillDefaultParams();
-};
+}
 
-const fillDefaultParams = () => {
+function clearComposerDraft() {
+  composer.method = "";
+  composer.requestId = "";
+  composer.backendKey = "";
+  composer.paramsText = "";
+  composer.responseText = "尚未发送请求";
+  composer.responseMeta = "等待发送";
+  methodFocused.value = false;
+}
+
+function fillDefaultParams() {
   const token = selectedBackend.value?.token ?? "";
   const method = composer.method.trim();
   if (
@@ -118,15 +128,15 @@ const fillDefaultParams = () => {
     return;
   }
   composer.paramsText = JSON.stringify({ token }, null, 2);
-};
+}
 
-const parseComposerParams = () => {
+function parseComposerParams() {
   const text = composer.paramsText.trim();
   if (!text) return [];
   return JSON.parse(text) as unknown;
-};
+}
 
-const sendComposerRequest = async () => {
+async function sendComposerRequest() {
   const backend = selectedBackend.value;
   if (!backend?.url) {
     toast.error("请选择后端凭据");
@@ -164,7 +174,7 @@ const sendComposerRequest = async () => {
   } finally {
     composer.sending = false;
   }
-};
+}
 </script>
 
 <template>
@@ -264,6 +274,15 @@ const sendComposerRequest = async () => {
           >
             <Copy class="size-4" />
             复制 JSON
+          </button>
+          <button
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+            type="button"
+            :disabled="composer.sending"
+            @click="clearComposerDraft"
+          >
+            <Trash2 class="size-4" />
+            清空
           </button>
         </div>
       </div>
