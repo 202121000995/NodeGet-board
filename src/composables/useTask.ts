@@ -68,7 +68,7 @@ export type TaskEventType =
   | VersionTask;
 
 export const allTaskStrings = [
-  "icmp_ping",
+  "ping",
   "tcp_ping",
   "http_ping",
   "web_shell",

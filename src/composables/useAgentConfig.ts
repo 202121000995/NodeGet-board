@@ -27,7 +27,7 @@ export interface UpstreamServer {
   token: string;
   ws_url: string;
 
-  allow_task?: boolean;
+  allow_task?: true;
   allow_icmp_ping?: boolean;
   allow_tcp_ping?: boolean;
   allow_http_ping?: boolean;
@@ -95,7 +95,7 @@ function parseToml(tomlStr: string): AgentConfig {
     // 对于 server 数组中的 allow_* 属性，设置默认值为 true
     if (config.server && Array.isArray(config.server)) {
       config.server = config.server.map((server) => ({
-        allow_task: false,
+        allow_task: true,
         allow_icmp_ping: false,
         allow_tcp_ping: false,
         allow_http_ping: false,
@@ -123,6 +123,13 @@ function oldUpstream2New(upstream: UpstreamServer) {
   const upstream2: UpstreamServer = JSON.parse(JSON.stringify(upstream));
   const allow_task_type: Array<TaskString> = [];
   allTaskStrings.forEach((t) => {
+    if (t === "ping") {
+      if (upstream2["allow_icmp_ping"]) {
+        allow_task_type.push(t as TaskString);
+        delete upstream2["allow_icmp_ping"];
+      }
+      return;
+    }
     if (upstream2["allow_" + t]) {
       allow_task_type.push(t as TaskString);
       delete upstream2["allow_" + t];
@@ -130,6 +137,7 @@ function oldUpstream2New(upstream: UpstreamServer) {
   });
   delete upstream2.allow_task;
   upstream2.allow_task_type = allow_task_type;
+  upstream2.allow_task = true;
   return upstream2;
 }
 
@@ -138,13 +146,16 @@ function newUpstream2Old(upstream: UpstreamServer) {
   if (!Array.isArray(upstream2.allow_task_type)) {
     throw "not new upstream";
   }
-  const allow_task_type: Array<TaskString> = [];
   const att = new Set(upstream2.allow_task_type);
   allTaskStrings.forEach((t) => {
+    if (t === "ping") {
+      upstream2["allow_icmp_ping"] = att.has(t);
+      return;
+    }
     upstream2["allow_" + t] = att.has(t);
   });
   delete upstream2.allow_task_type;
-  upstream2.allow_task = allow_task_type.length !== 0;
+  upstream2.allow_task = true;
   return upstream2;
 }
 
@@ -212,21 +223,25 @@ async function getAgentConfigExtra(
   };
 }
 
-function writeRawAgentConfig(
+async function writeRawAgentConfig(
   agentUuid: string,
   tomlContent: string,
   timeoutMs: number = 5000,
 ): Promise<boolean> {
-  const { createEditConfigTask } = useTask(currentBackend);
+  const { createEditConfigTask, query: queryTask } = useTask(currentBackend);
 
-  return createEditConfigTask(agentUuid, tomlContent, true, timeoutMs).then(
-    (response: any) => {
-      if ("edit_config" in response.task_event_result) {
-        return response.task_event_result.edit_config;
-      }
-      throw new Error("Failed to write agent config");
-    },
-  );
+  const task = await createEditConfigTask(agentUuid, tomlContent, false);
+  for (let t = 0; t < timeoutMs; t += 1000) {
+    const r = await queryTask([{ task_id: task.id }]);
+    if (!r.length) {
+      continue;
+    }
+    if (!r[0]) {
+      continue;
+    }
+    return r[0].success;
+  }
+  throw new Error("Failed to write agent config");
 }
 
 async function writeAgentConfig(

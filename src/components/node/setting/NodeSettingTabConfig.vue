@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { NumberField } from "@/components/ui/number-field";
 import { Switch } from "@/components/ui/switch";
 import { PopConfirm } from "@/components/ui/pop-confirm";
+import { type TaskString } from "@/composables/useTask";
 import {
   useAgentConfig,
   type AgentConfig,
@@ -46,7 +47,7 @@ const execMaxCharacter = ref<number | undefined>(undefined);
 const connectTimeout = ref<number | undefined>(undefined);
 
 // 特性开关 (server config中的allow_*属性)
-const allowTask = ref(false);
+const allowTaskType = ref(new Set<TaskString>());
 const allowIcmpPing = ref(false);
 const allowTcpPing = ref(false);
 const allowHttpPing = ref(false);
@@ -77,18 +78,7 @@ function syncFromConfig(config: splitConfig) {
 
   // 从 server 配置中提取第一个 server 的 allow_* 属性
   if (currentUpstream) {
-    allowTask.value = currentUpstream.allow_task === true;
-    allowIcmpPing.value = currentUpstream.allow_icmp_ping === true;
-    allowTcpPing.value = currentUpstream.allow_tcp_ping === true;
-    allowHttpPing.value = currentUpstream.allow_http_ping === true;
-    allowHttpRequest.value = currentUpstream.allow_http_request === true;
-    ((allowSelfUpdate.value = currentUpstream.allow_self_update === true),
-      (allowWebShell.value = currentUpstream.allow_web_shell === true));
-    allowExecute.value = currentUpstream.allow_execute === true;
-    allowReadConfig.value = currentUpstream.allow_read_config === true;
-    allowEditConfig.value = currentUpstream.allow_edit_config === true;
-    allowIp.value = currentUpstream.allow_edit_config === true;
-    allowVersion.value = currentUpstream.allow_version === true;
+    allowTaskType.value = new Set(currentUpstream.allow_task_type || []);
   }
 }
 
@@ -132,18 +122,7 @@ function buildConfig(): AgentConfig {
 
   const currentUpstreamNew: UpstreamServer = {
     ...agentConfig.value.currentUpstream,
-    allow_task: allowTask.value,
-    allow_icmp_ping: allowIcmpPing.value,
-    allow_tcp_ping: allowTcpPing.value,
-    allow_http_ping: allowHttpPing.value,
-    allow_http_request: allowHttpRequest.value,
-    allow_self_update: allowSelfUpdate.value,
-    allow_web_shell: allowWebShell.value,
-    allow_execute: allowExecute.value,
-    allow_read_config: allowReadConfig.value,
-    allow_edit_config: allowEditConfig.value,
-    allow_ip: !!allowIp.value,
-    allow_version: !!allowVersion.value,
+    allow_task_type: Array.from(allowTaskType.value),
   };
 
   return {
@@ -181,9 +160,9 @@ async function handleSave() {
     const success = await writeAgentConfig(props.uuid, config);
 
     if (success) {
-      toast.success(t("dashboard.saveSuccess"));
       await delay(1000);
       agentConfig.value = await getAgentConfigExtra(props.uuid);
+      toast.success(t("dashboard.saveSuccess"));
     } else {
       toast.error(t("dashboard.saveFailed"));
     }
@@ -194,22 +173,6 @@ async function handleSave() {
   } finally {
     saveLoading.value = false;
   }
-}
-
-/**
- * 处理禁用 allow_edit_config
- */
-function handleEditConfigToggle(checked: boolean) {
-  if (!checked) {
-    // 触发确认弹窗
-    // 这里通过 PopConfirm 组件处理
-  } else {
-    allowEditConfig.value = true;
-  }
-}
-
-function confirmDisableEditConfig() {
-  allowEditConfig.value = false;
 }
 </script>
 
@@ -347,76 +310,154 @@ function confirmDisableEditConfig() {
       <div class="space-y-2">
         <Label>{{ $t("dashboard.node.config.enabledFeatures") }}</Label>
 
-        <!-- allow_task 放在最前面作为总开关 -->
-        <div class="flex items-center justify-between pb-2 border-b">
-          <span class="text-sm font-medium">{{
-            $t("dashboard.node.config.featureTask")
-          }}</span>
-          <Switch v-model:modelValue="allowTask" />
-        </div>
-
         <!-- 当 allow_task 开启时显示其他特性 -->
-        <template v-if="allowTask">
+        <template v-if="allowTaskType.size > 0">
           <div class="space-y-2 pt-2">
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureIcmpPing")
               }}</span>
-              <Switch v-model:modelValue="allowIcmpPing" />
+              <Switch
+                :modelValue="allowTaskType.has('ping')"
+                @update:model-value="
+                  (v) =>
+                    v ? allowTaskType.add('ping') : allowTaskType.delete('ping')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureTcpPing")
               }}</span>
-              <Switch v-model:modelValue="allowTcpPing" />
+              <Switch
+                :modelValue="allowTaskType.has('tcp_ping')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('tcp_ping')
+                      : allowTaskType.delete('tcp_ping')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureHttpPing")
               }}</span>
-              <Switch v-model:modelValue="allowHttpPing" />
+              <Switch
+                :modelValue="allowTaskType.has('http_ping')"
+                :disabled="!allowTaskType.has('edit_config')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('http_ping')
+                      : allowTaskType.delete('http_ping')
+                "
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureHttpRequest")
               }}</span>
-              <Switch v-model:modelValue="allowHttpRequest" />
+              <Switch
+                :modelValue="allowTaskType.has('http_request')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('http_request')
+                      : allowTaskType.delete('http_request')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureSelfUpdate")
               }}</span>
-              <Switch v-model:modelValue="allowSelfUpdate" />
+              <Switch
+                :modelValue="allowTaskType.has('self_update')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('self_update')
+                      : allowTaskType.delete('self_update')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureWebShell")
               }}</span>
-              <Switch v-model:modelValue="allowWebShell" />
+              <Switch
+                :modelValue="allowTaskType.has('web_shell')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('web_shell')
+                      : allowTaskType.delete('web_shell')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureExecute")
               }}</span>
-              <Switch v-model:modelValue="allowExecute" />
+              <Switch
+                :modelValue="allowTaskType.has('execute')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('execute')
+                      : allowTaskType.delete('execute')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between gap-4">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureIp")
               }}</span>
-              <Switch v-model:modelValue="allowIp" />
+              <Switch
+                :modelValue="allowTaskType.has('ip')"
+                @update:model-value="
+                  (v) =>
+                    v ? allowTaskType.add('ip') : allowTaskType.delete('ip')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureVersion")
               }}</span>
-              <Switch v-model:modelValue="allowVersion" />
+              <Switch
+                :modelValue="allowTaskType.has('version')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('version')
+                      : allowTaskType.delete('version')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
                 $t("dashboard.node.config.featureReadConfig")
               }}</span>
-              <Switch v-model:modelValue="allowReadConfig" />
+              <Switch
+                :modelValue="allowTaskType.has('read_config')"
+                @update:model-value="
+                  (v) =>
+                    v
+                      ? allowTaskType.add('read_config')
+                      : allowTaskType.delete('read_config')
+                "
+                :disabled="!allowTaskType.has('edit_config')"
+              />
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm">{{
@@ -426,17 +467,21 @@ function confirmDisableEditConfig() {
                 :title="
                   $t('dashboard.node.config.featureEditConfigConfirmTitle')
                 "
+                v-if="allowTaskType.has('edit_config')"
                 :description="
                   $t('dashboard.node.config.featureEditConfigConfirmDesc')
                 "
-                @confirm="confirmDisableEditConfig"
+                @confirm="allowTaskType.delete('edit_config')"
               >
-                <Switch
-                  :checked="allowEditConfig"
-                  :disabled="!allowEditConfig"
-                  @update:checked="handleEditConfigToggle"
-                />
+                <div>
+                  <Switch :modelValue="allowTaskType.has('edit_config')" />
+                </div>
               </PopConfirm>
+              <Switch
+                v-else
+                :modelValue="allowTaskType.has('edit_config')"
+                @update:model-value="allowTaskType.add('edit_config')"
+              />
             </div>
           </div>
         </template>
