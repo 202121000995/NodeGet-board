@@ -9,6 +9,8 @@ Handles functionalities related to agent configuration, such as
 import { ref, computed } from "vue";
 import { useBackendStore } from "@/composables/useBackendStore";
 import { useBackendExtra } from "@/composables/useBackendExtra";
+import { type TaskString, allTaskStrings } from "@/composables/useTask";
+import { compareVersions } from "compare-versions";
 
 import {
   useTask,
@@ -38,6 +40,7 @@ export interface UpstreamServer {
   allow_self_update?: boolean;
   allow_ip?: boolean;
   allow_version?: boolean;
+  allow_task_type?: TaskString[];
 
   [key: string]: any;
 }
@@ -116,6 +119,35 @@ function parseToml(tomlStr: string): AgentConfig {
   }
 }
 
+function oldUpstream2New(upstream: UpstreamServer) {
+  const upstream2: UpstreamServer = JSON.parse(JSON.stringify(upstream));
+  const allow_task_type: Array<TaskString> = [];
+  allTaskStrings.forEach((t) => {
+    if (upstream2["allow_" + t]) {
+      allow_task_type.push(t as TaskString);
+      delete upstream2["allow_" + t];
+    }
+  });
+  delete upstream2.allow_task;
+  upstream2.allow_task_type = allow_task_type;
+  return upstream2;
+}
+
+function newUpstream2Old(upstream: UpstreamServer) {
+  const upstream2: UpstreamServer = JSON.parse(JSON.stringify(upstream));
+  if (!Array.isArray(upstream2.allow_task_type)) {
+    throw "not new upstream";
+  }
+  const allow_task_type: Array<TaskString> = [];
+  const att = new Set(upstream2.allow_task_type);
+  allTaskStrings.forEach((t) => {
+    upstream2["allow_" + t] = att.has(t);
+  });
+  delete upstream2.allow_task_type;
+  upstream2.allow_task = allow_task_type.length !== 0;
+  return upstream2;
+}
+
 /**
  * 使用标准TOML库序列化配置
  */
@@ -134,7 +166,15 @@ function getAgentConfig(
   timeoutMs: number = 5000,
 ): Promise<AgentConfig> {
   return getRawAgentConfig(agentUuid, timeoutMs).then((tomlStr) => {
-    return parseToml(tomlStr);
+    const config = parseToml(tomlStr);
+    config.server = config.server.map((v) => {
+      if (Array.isArray(v.allow_task_type)) {
+        return v;
+      }
+      return oldUpstream2New(v);
+    });
+    // return new config format
+    return config;
   });
 }
 
@@ -189,11 +229,23 @@ function writeRawAgentConfig(
   );
 }
 
-function writeAgentConfig(
+async function writeAgentConfig(
   agentUuid: string,
   config: AgentConfig,
   timeoutMs: number = 5000,
 ): Promise<boolean> {
+  const { createVersionTask } = useTask(currentBackend);
+
+  const versonResult = await createVersionTask(agentUuid, true);
+  const version = versonResult.task_event_result?.version;
+
+  if (!version) {
+    throw "failed to get agent version";
+  }
+  if (compareVersions(version.cargo_version, "0.3.0") < 0) {
+    config.server = config.server.map((v) => newUpstream2Old(v));
+  }
+
   const tomlContent = serializeToml(config);
   return writeRawAgentConfig(agentUuid, tomlContent, timeoutMs);
 }

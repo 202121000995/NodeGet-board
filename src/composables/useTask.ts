@@ -67,6 +67,23 @@ export type TaskEventType =
   | IpTask
   | VersionTask;
 
+export const allTaskStrings = [
+  "icmp_ping",
+  "tcp_ping",
+  "http_ping",
+  "web_shell",
+  "edit_config",
+  "read_config",
+  "execute",
+  "http_request",
+  "self_update",
+  "ip",
+  "version",
+  "dns",
+] as const;
+
+export type TaskString = (typeof allTaskStrings)[number];
+
 // Task Event Results
 export interface PingResult {
   ping: number; // 延迟 ms
@@ -176,14 +193,14 @@ export interface CreateTaskResponse {
 }
 
 // Create Task Blocking Response
-export interface CreateTaskBlockingResponse {
+export interface CreateTaskBlockingResponse<T = TaskEventResult> {
   task_id: number;
   agent_uuid: string;
   task_token: string;
   timestamp: number;
   success: boolean;
   error_message: string | null;
-  task_event_result: TaskEventResult | null;
+  task_event_result: T | null;
 }
 
 // Delete Task Response
@@ -221,12 +238,12 @@ export function useTask(backend = useBackendStore().currentBackend) {
   /**
    * 创建任务并阻塞等待 Agent 返回结果
    */
-  const createTaskBlocking = async (
+  const createTaskBlocking = async <T>(
     targetUuid: string,
     taskType: TaskEventType,
     timeoutMs: number = 5000,
-  ): Promise<CreateTaskBlockingResponse> => {
-    return rpc<CreateTaskBlockingResponse>(
+  ) => {
+    return rpc<CreateTaskBlockingResponse<T>>(
       "task_create_task_blocking",
       {
         token: backendToken.value,
@@ -316,43 +333,59 @@ export function useTask(backend = useBackendStore().currentBackend) {
   };
 
   // Convenience methods for creating specific task types
-  const createPingTask = async (
+  const createPingTask = async <T extends boolean = false>(
     targetUuid: string,
     target: string,
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true ? CreateTaskBlockingResponse<PingResult> : CreateTaskResponse
+  > => {
     const taskType: PingTask = { ping: target };
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<PingResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createTcpPingTask = async (
+  const createTcpPingTask = async <T extends boolean = false>(
     targetUuid: string,
     target: string,
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<TcpPingResult>
+      : CreateTaskResponse
+  > => {
     const taskType: TcpPingTask = { tcp_ping: target };
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<TcpPingResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createHttpPingTask = async (
+  const createHttpPingTask = async <T extends boolean = false>(
     targetUuid: string,
     url: string,
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<HttpPingResult>
+      : CreateTaskResponse
+  > => {
     const taskType: HttpPingTask = { http_ping: url };
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<HttpPingResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createHttpRequestTask = async (
+  const createHttpRequestTask = async <T extends boolean = false>(
     targetUuid: string,
     config: {
       url: string;
@@ -362,38 +395,56 @@ export function useTask(backend = useBackendStore().currentBackend) {
       body_base64?: string;
       ip?: string;
     },
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<HttpRequestResult>
+      : CreateTaskResponse
+  > => {
     const taskType: HttpRequestTask = { http_request: config };
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<HttpRequestResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createSelfUpdateTask = async (
+  const createSelfUpdateTask = async <T extends boolean = false>(
     targetUuid: string,
     version: string,
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<SelfUpdateResult>
+      : CreateTaskResponse
+  > => {
     const taskType: SelfUpdateTask = { self_update: version };
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<SelfUpdateResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createExecuteTask = async (
+  const createExecuteTask = async <T extends boolean = false>(
     targetUuid: string,
     cmd: string,
     args: string[] = [],
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<ExecuteResult>
+      : CreateTaskResponse
+  > => {
     const taskType: ExecuteTask = { execute: { cmd, args } };
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<ExecuteResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
   const createWebShellTask = async (
@@ -407,49 +458,71 @@ export function useTask(backend = useBackendStore().currentBackend) {
     return createTask(targetUuid, taskType);
   };
 
-  const createReadConfigTask = async (
+  const createReadConfigTask = async <T extends boolean = false>(
     targetUuid: string,
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<ReadConfigResult>
+      : CreateTaskResponse
+  > => {
     const taskType: ReadConfigTask = "read_config";
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<ReadConfigResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createEditConfigTask = async (
+  const createEditConfigTask = async <T extends boolean = false>(
     targetUuid: string,
     configContent: string,
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<EditConfigResult>
+      : CreateTaskResponse
+  > => {
     const taskType: EditConfigTask = { edit_config: configContent };
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<EditConfigResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createIpTask = async (
+  const createIpTask = async <T extends boolean = false>(
     targetUuid: string,
-    blocking: boolean = false,
+    blocking: T = false as T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true ? CreateTaskBlockingResponse<IpResult> : CreateTaskResponse
+  > => {
     const taskType: IpTask = "ip";
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<IpResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
-  const createVersionTask = async (
+  const createVersionTask = async <T extends boolean = true>(
     targetUuid: string,
-    blocking: boolean = false,
+    blocking: T,
     timeoutMs?: number,
-  ): Promise<CreateTaskResponse | CreateTaskBlockingResponse> => {
+  ): Promise<
+    T extends true
+      ? CreateTaskBlockingResponse<VersionResult>
+      : CreateTaskResponse
+  > => {
     const taskType: VersionTask = "version";
-    return blocking
-      ? createTaskBlocking(targetUuid, taskType, timeoutMs)
-      : createTask(targetUuid, taskType);
+    return (
+      blocking
+        ? createTaskBlocking<VersionResult>(targetUuid, taskType, timeoutMs)
+        : createTask(targetUuid, taskType)
+    ) as any;
   };
 
   return {
