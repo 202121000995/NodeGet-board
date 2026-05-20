@@ -45,6 +45,7 @@ const networkFilterSuggestionSnapshot = shallowRef<NetworkFilterSuggestion[]>(
   [],
 );
 const networkFilterSuggestionsOpen = ref(false);
+const networkDrawerWidth = ref(420);
 const statusFilter = ref("all");
 const kindFilter = ref("all");
 
@@ -274,7 +275,7 @@ function relayCopy(text: string, message?: string) {
           <Command
             :filter="rpcDebugCommandFilter"
             :highlight-on-hover="true"
-            class="relative h-9 w-full overflow-visible rounded-md border bg-background shadow-none [&_[data-slot=command-input-wrapper]]:h-9 [&_[data-slot=command-input-wrapper]]:border-b-0 [&_[data-slot=command-input-wrapper]]:px-2.5 [&_[data-slot=command-input]]:h-8 [&_[data-slot=command-input]]:py-1 [&_[data-slot=command-input]]:text-xs"
+            class="relative h-9 w-full overflow-visible rounded-md border bg-background shadow-none **:data-[slot=command-input]:h-8 **:data-[slot=command-input]:py-1 **:data-[slot=command-input]:text-xs **:data-[slot=command-input-wrapper]:h-9 **:data-[slot=command-input-wrapper]:border-b-0 **:data-[slot=command-input-wrapper]:px-2.5"
             @focusout="handleNetworkFilterFocusOut"
           >
             <CommandInput
@@ -402,6 +403,7 @@ function relayCopy(text: string, message?: string) {
       />
       <RpcNetworkDrawer
         v-if="selectedRecord"
+        v-model:width="networkDrawerWidth"
         class="z-10"
         :record="selectedRecord"
         @close="closeDrawer"

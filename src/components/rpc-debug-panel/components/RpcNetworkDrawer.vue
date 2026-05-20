@@ -1,31 +1,59 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { Copy, X } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { useDraggable, useEventListener, useWindowSize } from "@vueuse/core";
+import { Copy, FileJson, Pencil, X } from "lucide-vue-next";
 import type { RpcDebugRecord } from "../rpcDebugStore";
 import { formatDebugPayload } from "../rpcDebugStore";
-import { statusClass, statusText } from "../helpers";
+import { statusText } from "../helpers";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-type DetailTabKey = "headers" | "body" | "response";
+type DetailTabKey = "headers" | "payload" | "response";
 
 const detailTabs: Array<{ key: DetailTabKey; label: string }> = [
   { key: "headers", label: "标头" },
-  { key: "body", label: "body" },
+  { key: "payload", label: "负载" },
   { key: "response", label: "响应" },
 ];
 
-const props = defineProps<{
-  record: RpcDebugRecord;
-  class?: string;
-}>();
+const DEFAULT_DRAWER_WIDTH = 420;
+const MIN_DRAWER_WIDTH = 360;
+const MAX_DRAWER_WIDTH = 880;
+const ACTION_TEXT_DRAWER_WIDTH = 560;
+
+const props = withDefaults(
+  defineProps<{
+    record: RpcDebugRecord;
+    class?: string;
+    width?: number;
+  }>(),
+  {
+    width: DEFAULT_DRAWER_WIDTH,
+  },
+);
 
 const emit = defineEmits<{
   close: [];
   copy: [text: string, message?: string];
   edit: [record: RpcDebugRecord];
+  "update:width": [width: number];
 }>();
 
 const activeDetailTab = ref<DetailTabKey>("headers");
+const drawerResizeHandle = ref<HTMLElement | null>(null);
+
+let resizeStartX = 0;
+let resizeStartWidth = DEFAULT_DRAWER_WIDTH;
+
+const { width: windowWidth } = useWindowSize();
 
 const requestText = computed(() =>
   formatDebugPayload(props.record.request, props.record.method),
@@ -34,6 +62,35 @@ const requestText = computed(() =>
 const responseText = computed(() =>
   formatDebugPayload(props.record.response, props.record.method),
 );
+
+const drawerWidth = computed({
+  get: () => props.width,
+  set: (width) => emit("update:width", clampDrawerWidth(width)),
+});
+
+const drawerStyle = computed(() => ({
+  width: `${drawerWidth.value}px`,
+}));
+
+const showActionText = computed(
+  () => drawerWidth.value >= ACTION_TEXT_DRAWER_WIDTH,
+);
+
+const statusBadgeVariant = computed(() => {
+  if (
+    props.record.status === "success" ||
+    props.record.status === "streaming"
+  ) {
+    return "default";
+  }
+  if (props.record.status === "error" || props.record.status === "closed") {
+    return "destructive";
+  }
+  if (props.record.status === "pending") {
+    return "secondary";
+  }
+  return "outline";
+});
 
 const headerRows = computed(() => [
   { label: "方法", value: props.record.method },
@@ -70,13 +127,13 @@ function headerText() {
 }
 
 function activeTabCopyText() {
-  if (activeDetailTab.value === "body") return requestText.value;
+  if (activeDetailTab.value === "payload") return requestText.value;
   if (activeDetailTab.value === "response") return responseText.value;
   return headerText();
 }
 
 function activeTabCopyMessage() {
-  if (activeDetailTab.value === "body") return "Body 已复制";
+  if (activeDetailTab.value === "payload") return "负载已复制";
   if (activeDetailTab.value === "response") return "响应已复制";
   return "标头已复制";
 }
@@ -85,143 +142,237 @@ function copyActiveTab() {
   emit("copy", activeTabCopyText(), activeTabCopyMessage());
 }
 
-function handleKeydown(event: KeyboardEvent) {
+function maxDrawerWidth() {
+  return Math.min(
+    MAX_DRAWER_WIDTH,
+    Math.max(MIN_DRAWER_WIDTH, windowWidth.value - 48),
+  );
+}
+
+function clampDrawerWidth(width: number) {
+  return Math.min(Math.max(width, MIN_DRAWER_WIDTH), maxDrawerWidth());
+}
+
+function handleDrawerEscapeKeydown(event: KeyboardEvent) {
   if (event.key !== "Escape") return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
   emit("close");
 }
 
-onMounted(() => {
-  window.addEventListener("keydown", handleKeydown);
+const { isDragging: isResizingDrawer } = useDraggable(drawerResizeHandle, {
+  axis: "x",
+  preventDefault: true,
+  stopPropagation: true,
+  onStart(_position, event) {
+    resizeStartX = event.clientX;
+    resizeStartWidth = drawerWidth.value;
+  },
+  onMove(_position, event) {
+    drawerWidth.value = clampDrawerWidth(
+      resizeStartWidth + resizeStartX - event.clientX,
+    );
+  },
 });
 
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", handleKeydown);
+watch(windowWidth, () => {
+  drawerWidth.value = clampDrawerWidth(drawerWidth.value);
 });
+
+useEventListener("keydown", handleDrawerEscapeKeydown, { capture: true });
 </script>
 
 <template>
   <aside
     :class="
       cn(
-        'absolute bottom-0 right-0 top-0 flex w-[420px] max-w-full flex-col border-l bg-background shadow-xl',
+        'absolute top-0 right-0 bottom-0 flex max-w-full flex-col border-l bg-background shadow-xl',
         props.class,
       )
     "
+    :style="drawerStyle"
   >
-    <div class="border-b px-5 py-4">
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <h2 class="font-semibold">消息详情</h2>
-          <p class="mt-1 max-w-[250px] truncate text-xs text-muted-foreground">
+    <div
+      ref="drawerResizeHandle"
+      title="拖拽调整详情面板宽度"
+      class="group absolute top-0 left-0 z-20 h-full w-2 -translate-x-1 cursor-ew-resize touch-none outline-none"
+    >
+      <div
+        :class="
+          cn(
+            'mx-auto h-full w-px bg-border transition-colors group-hover:bg-primary/60 group-focus-visible:bg-primary',
+            isResizingDrawer && 'bg-primary',
+          )
+        "
+      />
+    </div>
+
+    <div class="border-b px-4 py-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 space-y-1">
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+            <h2 class="shrink-0 text-sm font-semibold">消息详情</h2>
+            <Badge
+              :variant="statusBadgeVariant"
+              class="h-5 rounded px-1.5 text-[10px]"
+            >
+              {{ statusText(record) }}
+            </Badge>
+            <Badge variant="outline" class="h-5 rounded px-1.5 text-[10px]">
+              {{ record.durationMs != null ? `${record.durationMs}ms` : "-" }}
+            </Badge>
+            <Badge variant="outline" class="h-5 rounded px-1.5 text-[10px]">
+              {{ record.direction }}
+            </Badge>
+          </div>
+          <p class="max-w-full truncate text-xs text-muted-foreground">
             {{ record.method }}
           </p>
         </div>
-        <button
-          class="inline-flex size-9 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="shrink-0"
           @click="emit('close')"
         >
           <X class="size-4" />
-        </button>
+        </Button>
       </div>
     </div>
 
-    <div class="space-y-4 border-b px-5 py-4">
-      <div class="flex flex-wrap gap-2">
-        <span
-          class="inline-flex h-7 items-center rounded-md px-3 text-xs ring-1"
-          :class="statusClass(record.status)"
-        >
-          {{ statusText(record) }}
-        </span>
-        <span
-          class="inline-flex h-7 items-center rounded-md bg-muted px-3 text-xs ring-1 ring-border"
-        >
-          {{ record.durationMs != null ? `${record.durationMs}ms` : "-" }}
-        </span>
-        <span
-          class="inline-flex h-7 items-center rounded-md bg-muted px-3 text-xs ring-1 ring-border"
-        >
-          {{ record.direction }}
-        </span>
-      </div>
-
-      <div class="flex gap-2">
-        <button
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-          type="button"
-          @click="emit('edit', record)"
-        >
-          编辑并重新构造
-        </button>
-        <button
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-          type="button"
-          @click="
-            emit(
-              'copy',
-              formatDebugPayload(record, record.method),
-              '完整记录已复制',
-            )
-          "
-        >
-          <Copy class="size-4" />完整复制
-        </button>
-      </div>
-    </div>
-
-    <div class="flex h-11 shrink-0 items-center justify-between border-b px-5">
-      <div class="flex h-full items-center gap-4">
-        <button
-          v-for="tab in detailTabs"
-          :key="tab.key"
-          class="h-full border-b-2 px-1 text-sm font-medium transition-colors"
-          :class="
-            activeDetailTab === tab.key
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          "
-          type="button"
-          @click="activeDetailTab = tab.key"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-      <button
-        class="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-border bg-background px-2 text-xs font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-        type="button"
-        @click="copyActiveTab"
+    <Tabs v-model="activeDetailTab" class="flex min-h-0 flex-1 flex-col">
+      <div
+        class="flex h-10 shrink-0 items-center justify-between border-b px-4"
       >
-        复制
-      </button>
-    </div>
-
-    <div class="min-h-0 flex-1 overflow-auto p-5">
-      <dl
-        v-if="activeDetailTab === 'headers'"
-        class="grid grid-cols-[88px_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"
-      >
-        <template v-for="row in headerRows" :key="row.label">
-          <dt class="text-muted-foreground">{{ row.label }}</dt>
-          <dd class="min-w-0 break-all font-mono text-xs leading-6">
-            {{ row.value }}
-          </dd>
-        </template>
-      </dl>
-
-      <div v-else-if="activeDetailTab === 'body'" class="h-full min-h-0">
-        <pre
-          class="min-h-full overflow-auto rounded-md bg-muted/35 p-3 text-xs leading-relaxed"
-          >{{ requestText || "无发送内容" }}</pre
-        >
+        <TabsList class="h-8 rounded-md p-0.5">
+          <TabsTrigger
+            v-for="tab in detailTabs"
+            :key="tab.key"
+            :value="tab.key"
+            class="h-7 px-2.5 text-xs"
+          >
+            {{ tab.label }}
+          </TabsTrigger>
+        </TabsList>
+        <div v-if="showActionText" class="flex items-center gap-1.5">
+          <Button
+            aria-label="完整复制"
+            variant="ghost"
+            size="sm"
+            class="h-8 gap-1.5 px-2.5 text-xs"
+            @click="
+              emit(
+                'copy',
+                formatDebugPayload(record, record.method),
+                '完整记录已复制',
+              )
+            "
+          >
+            <FileJson class="size-3.5" />
+            完整复制
+          </Button>
+          <Button
+            aria-label="编辑"
+            variant="ghost"
+            size="sm"
+            class="h-8 gap-1.5 px-2.5 text-xs"
+            @click="emit('edit', record)"
+          >
+            <Pencil class="size-3.5" />
+            编辑
+          </Button>
+          <Button
+            aria-label="复制当前标签内容"
+            variant="ghost"
+            size="sm"
+            class="h-8 gap-1.5 px-2.5 text-xs"
+            @click="copyActiveTab"
+          >
+            <Copy class="size-3.5" />
+            复制当前标签
+          </Button>
+        </div>
+        <TooltipProvider v-else :delay-duration="120">
+          <div class="flex items-center gap-1.5">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  aria-label="完整复制"
+                  variant="ghost"
+                  size="icon-sm"
+                  @click="
+                    emit(
+                      'copy',
+                      formatDebugPayload(record, record.method),
+                      '完整记录已复制',
+                    )
+                  "
+                >
+                  <FileJson class="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">完整复制</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  aria-label="编辑"
+                  variant="ghost"
+                  size="icon-sm"
+                  @click="emit('edit', record)"
+                >
+                  <Pencil class="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">编辑</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  aria-label="复制当前标签内容"
+                  variant="ghost"
+                  size="icon-sm"
+                  @click="copyActiveTab"
+                >
+                  <Copy class="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">复制当前标签内容</TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
-      <div v-else class="h-full min-h-0">
-        <pre
-          class="min-h-full overflow-auto rounded-md bg-muted/35 p-3 text-xs leading-relaxed"
-          >{{ responseText || "等待响应" }}</pre
+      <div class="min-h-0 flex-1 overflow-auto p-4">
+        <TabsContent
+          value="headers"
+          class="m-0 grid grid-cols-[88px_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm"
         >
+          <template v-for="row in headerRows" :key="row.label">
+            <dt class="text-muted-foreground">{{ row.label }}</dt>
+            <dd class="min-w-0 font-mono text-xs leading-6 break-all">
+              {{ row.value }}
+            </dd>
+          </template>
+        </TabsContent>
+
+        <TabsContent value="payload" class="m-0 h-full min-h-0">
+          <div class="overflow-hidden rounded-md border bg-muted/35">
+            <pre class="min-h-full overflow-auto p-3 text-xs leading-relaxed">{{
+              requestText || "无发送内容"
+            }}</pre>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="response" class="m-0 h-full min-h-0">
+          <div class="overflow-hidden rounded-md border bg-muted/35">
+            <pre class="min-h-full overflow-auto p-3 text-xs leading-relaxed">{{
+              responseText || "等待响应"
+            }}</pre>
+          </div>
+        </TabsContent>
       </div>
-    </div>
+    </Tabs>
   </aside>
 </template>

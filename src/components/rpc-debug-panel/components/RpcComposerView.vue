@@ -295,7 +295,7 @@ async function sendComposerRequest() {
             <Command
               :filter="rpcDebugCommandFilter"
               :highlight-on-hover="true"
-              class="relative h-10 overflow-visible rounded-md border bg-background shadow-none [&_[data-slot=command-input-wrapper]]:h-10 [&_[data-slot=command-input-wrapper]]:border-b-0 [&_[data-slot=command-input]]:h-9 [&_[data-slot=command-input]]:py-1 [&_[data-slot=command-input]]:text-sm"
+              class="relative h-10 overflow-visible rounded-md border bg-background shadow-none **:data-[slot=command-input]:h-9 **:data-[slot=command-input]:py-1 **:data-[slot=command-input]:text-sm **:data-[slot=command-input-wrapper]:h-10 **:data-[slot=command-input-wrapper]:border-b-0"
               @focusout="handleMethodFocusOut"
             >
               <CommandInput
@@ -370,7 +370,7 @@ async function sendComposerRequest() {
             <Label class="text-xs text-muted-foreground">参数 JSON</Label>
             <Textarea
               v-model="composer.paramsText"
-              class="min-h-[180px] font-mono text-sm"
+              class="min-h-45 font-mono text-sm"
             />
           </div>
 
