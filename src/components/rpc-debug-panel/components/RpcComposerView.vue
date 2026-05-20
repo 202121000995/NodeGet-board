@@ -316,6 +316,7 @@ async function sendComposerRequest() {
                   <CommandItem
                     v-for="method in methodCatalog"
                     :key="method"
+                    keep-search-on-select
                     :value="method"
                     class="justify-between gap-3 text-sm"
                     @select="selectMethodSuggestion(method)"

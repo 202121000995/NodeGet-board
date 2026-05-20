@@ -8,11 +8,14 @@ import { cn } from "@/lib/utils";
 import { useCommand, useCommandGroup } from ".";
 
 const props = defineProps<
-  ListboxItemProps & { class?: HTMLAttributes["class"] }
+  ListboxItemProps & {
+    class?: HTMLAttributes["class"];
+    keepSearchOnSelect?: boolean;
+  }
 >();
 const emits = defineEmits<ListboxItemEmits>();
 
-const delegatedProps = reactiveOmit(props, "class");
+const delegatedProps = reactiveOmit(props, "class", "keepSearchOnSelect");
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
 
@@ -59,6 +62,14 @@ onMounted(() => {
 onUnmounted(() => {
   allItems.value.delete(id);
 });
+
+function clearSearchOnSelect() {
+  if (props.keepSearchOnSelect) {
+    return;
+  }
+
+  filterState.search = "";
+}
 </script>
 
 <template>
@@ -74,11 +85,7 @@ onUnmounted(() => {
         props.class,
       )
     "
-    @select="
-      () => {
-        filterState.search = '';
-      }
-    "
+    @select="clearSearchOnSelect"
   >
     <slot />
   </ListboxItem>

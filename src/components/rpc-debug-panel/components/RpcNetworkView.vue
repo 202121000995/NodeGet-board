@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, ref } from "vue";
+import { computed, h, ref, shallowRef } from "vue";
 import type { ColumnDef } from "@tanstack/vue-table";
 import { useDebounceFn } from "@vueuse/core";
 import { Download, Pause, Play, Trash2 } from "lucide-vue-next";
@@ -41,6 +41,9 @@ const emit = defineEmits<{
 const debugStore = useRpcDebugStore();
 const networkFilter = ref("");
 const networkFilterDraft = ref("");
+const networkFilterSuggestionSnapshot = shallowRef<NetworkFilterSuggestion[]>(
+  [],
+);
 const networkFilterSuggestionsOpen = ref(false);
 const statusFilter = ref("all");
 const kindFilter = ref("all");
@@ -68,7 +71,23 @@ const NETWORK_FILTER_SUGGESTION_LABELS: Record<
   keyword: "关键词",
 };
 
-const networkFilterSuggestions = computed(() => {
+const networkFilterSuggestionGroups = computed(() =>
+  (
+    Object.keys(
+      NETWORK_FILTER_SUGGESTION_LABELS,
+    ) as NetworkFilterSuggestionType[]
+  )
+    .map((type) => ({
+      type,
+      heading: NETWORK_FILTER_SUGGESTION_LABELS[type],
+      suggestions: networkFilterSuggestionSnapshot.value.filter(
+        (suggestion) => suggestion.type === type,
+      ),
+    }))
+    .filter((group) => group.suggestions.length > 0),
+);
+
+function collectNetworkFilterSuggestions() {
   const suggestions = new Map<string, NetworkFilterSuggestion>();
 
   for (const record of debugStore.records.value) {
@@ -80,23 +99,7 @@ const networkFilterSuggestions = computed(() => {
   }
 
   return [...suggestions.values()];
-});
-
-const networkFilterSuggestionGroups = computed(() =>
-  (
-    Object.keys(
-      NETWORK_FILTER_SUGGESTION_LABELS,
-    ) as NetworkFilterSuggestionType[]
-  )
-    .map((type) => ({
-      type,
-      heading: NETWORK_FILTER_SUGGESTION_LABELS[type],
-      suggestions: networkFilterSuggestions.value.filter(
-        (suggestion) => suggestion.type === type,
-      ),
-    }))
-    .filter((group) => group.suggestions.length > 0),
-);
+}
 
 const filteredRecords = computed(() => {
   const q = networkFilter.value;
@@ -150,12 +153,12 @@ function addNetworkFilterSuggestion(
 function applyNetworkFilterSuggestion(value: string) {
   networkFilterDraft.value = value;
   networkFilter.value = value;
-  networkFilterSuggestionsOpen.value = false;
+  closeNetworkFilterSuggestions();
 }
 
 function handleNetworkFilterInput(value: string) {
   networkFilterDraft.value = value;
-  networkFilterSuggestionsOpen.value = true;
+  openNetworkFilterSuggestions();
   syncNetworkFilter();
 }
 
@@ -171,7 +174,20 @@ function handleNetworkFilterFocusOut(event: FocusEvent) {
     return;
   }
 
+  closeNetworkFilterSuggestions();
+}
+
+function openNetworkFilterSuggestions() {
+  if (!networkFilterSuggestionsOpen.value) {
+    networkFilterSuggestionSnapshot.value = collectNetworkFilterSuggestions();
+  }
+
+  networkFilterSuggestionsOpen.value = true;
+}
+
+function closeNetworkFilterSuggestions() {
   networkFilterSuggestionsOpen.value = false;
+  networkFilterSuggestionSnapshot.value = [];
 }
 
 const networkColumns = computed<ColumnDef<RpcDebugRecord>[]>(() => [
@@ -262,12 +278,13 @@ function relayCopy(text: string, message?: string) {
             @focusout="handleNetworkFilterFocusOut"
           >
             <CommandInput
+              v-model="networkFilterDraft"
               :auto-focus="false"
               placeholder="筛选方法 / ID / 关键词"
-              @focus="networkFilterSuggestionsOpen = true"
-              @click="networkFilterSuggestionsOpen = true"
+              @focus="openNetworkFilterSuggestions"
+              @click="openNetworkFilterSuggestions"
               @update:model-value="handleNetworkFilterInput"
-              @keydown.esc.stop="networkFilterSuggestionsOpen = false"
+              @keydown.esc.stop="closeNetworkFilterSuggestions"
             />
             <CommandList
               v-if="networkFilterSuggestionsOpen"
@@ -283,8 +300,8 @@ function relayCopy(text: string, message?: string) {
                 <CommandItem
                   v-for="suggestion in group.suggestions"
                   :key="`${suggestion.type}:${suggestion.value}`"
+                  keep-search-on-select
                   :value="`${suggestion.type}:${suggestion.value}`"
-                  :text-value="suggestion.value"
                   class="gap-2 text-xs"
                   @select="applyNetworkFilterSuggestion(suggestion.value)"
                 >
