@@ -5,20 +5,7 @@ import type { PermissionEntry } from "../../type";
 import { Button } from "@/components/ui/button";
 import { arePermissionEntriesEqual } from "./permissionsState";
 import { usePermissionModuleOpen } from "./usePermissionModuleOpen";
-
-const TASK_TYPES = [
-  "ping",
-  "tcp_ping",
-  "http_ping",
-  "web_shell",
-  "execute",
-  "ip",
-  "read_config",
-  "edit_config",
-  "version",
-  "http_request",
-  "self_update",
-] as const;
+import { TASK_NAME_LIST } from "@/types/task";
 
 const props = defineProps<{ modelValue: PermissionEntry[] }>();
 const emits = defineEmits<{
@@ -108,7 +95,7 @@ watch(
 
 <template>
   <details class="rounded-md border p-3" :open="isOpen" @toggle="handleToggle">
-    <summary class="cursor-pointer select-none text-sm font-medium">
+    <summary class="cursor-pointer text-sm font-medium select-none">
       {{
         t(
           "dashboard.token.permissionsConfig.limitItem.permissionCard.task.title",
@@ -141,7 +128,7 @@ watch(
         </div>
         <div class="flex flex-wrap gap-2">
           <Button
-            v-for="type in TASK_TYPES"
+            v-for="type in TASK_NAME_LIST"
             :key="`task-c-${type}`"
             type="button"
             size="sm"
@@ -162,7 +149,7 @@ watch(
         </div>
         <div class="flex flex-wrap gap-2">
           <Button
-            v-for="type in TASK_TYPES"
+            v-for="type in TASK_NAME_LIST"
             :key="`task-r-${type}`"
             type="button"
             size="sm"
@@ -183,7 +170,7 @@ watch(
         </div>
         <div class="flex flex-wrap gap-2">
           <Button
-            v-for="type in TASK_TYPES"
+            v-for="type in TASK_NAME_LIST"
             :key="`task-w-${type}`"
             type="button"
             size="sm"

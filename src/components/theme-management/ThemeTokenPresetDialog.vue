@@ -65,7 +65,16 @@ const handleSave = async () => {
   }
   saving.value = true;
   try {
-    await savePresets(presets.value);
+    const normalized = presets.value.map((p) => {
+      if (!p.backend_url) return p;
+      try {
+        const parsed = new URL(p.backend_url);
+        return { ...p, backend_url: `${parsed.protocol}//${parsed.host}` };
+      } catch {
+        return p;
+      }
+    });
+    await savePresets(normalized);
     toast.success("Token 预设已保存");
     emit("update:open", false);
   } catch (e: unknown) {
@@ -91,7 +100,7 @@ const handleSave = async () => {
         <template v-else>
           <div
             v-if="presets.length"
-            class="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-xs text-muted-foreground px-1"
+            class="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 px-1 text-xs text-muted-foreground"
           >
             <span>名称</span>
             <span>后端 URL</span>
@@ -102,7 +111,7 @@ const handleSave = async () => {
           <div
             v-for="(preset, i) in presets"
             :key="i"
-            class="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center"
+            class="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2"
           >
             <Input v-model="preset.name" placeholder="名称" />
             <Input v-model="preset.backend_url" placeholder="https://..." />
@@ -119,13 +128,13 @@ const handleSave = async () => {
 
           <div
             v-if="!presets.length"
-            class="text-center text-muted-foreground text-sm py-4"
+            class="py-4 text-center text-sm text-muted-foreground"
           >
             暂无预设，点击「新增」添加
           </div>
 
           <Button variant="outline" size="sm" class="w-full" @click="addRow">
-            <Plus class="h-4 w-4 mr-1" />
+            <Plus class="mr-1 h-4 w-4" />
             新增
           </Button>
         </template>
@@ -136,7 +145,7 @@ const handleSave = async () => {
           取消
         </Button>
         <Button :disabled="saving" @click="handleSave">
-          <Loader2 v-if="saving" class="h-4 w-4 animate-spin mr-1" />
+          <Loader2 v-if="saving" class="mr-1 h-4 w-4 animate-spin" />
           保存
         </Button>
       </DialogFooter>

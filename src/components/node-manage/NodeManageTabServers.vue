@@ -10,6 +10,7 @@ import {
   CloudDownload,
   Loader2,
   Info,
+  Share2,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ import { useLifecycle } from "@/composables/useLifecycle";
 import { useTask } from "@/composables/useTask";
 import { delay } from "@/lib/delay";
 import VersionDialog from "@/components/node-manage/VersionDialog.vue";
+import ShareDialog from "@/components/node-manage/ShareDialog.vue";
 import { compareVersions } from "compare-versions";
 import { getWsConnection } from "@/composables/useWsConnection";
 import codeCopy from "@/components/node-manage/codeCopy.vue";
@@ -69,6 +71,8 @@ bash <(curl -sL https://install.nodeget.com) update-server
 
 const addOpen = ref(false);
 const changeVersionOpen = ref(false);
+const shareOpen = ref(false);
+const shareBackend = ref<Backend | null>(null);
 const availableVersions = ref<string[]>([]);
 const pendingUpdateUrl = ref<string>("");
 const upgradeStatus = ref<Map<string, "waiting" | "upgrading" | "confirming">>(
@@ -85,9 +89,7 @@ const initForm = ref<{
 });
 
 const handleManage = (backend: Backend) => {
-  router.push(
-    `/dashboard/servers-detail/${encodeURIComponent(backend.url)}:::${encodeURIComponent(backend.token)}`,
-  );
+  router.push(`/dashboard/servers-detail/${backend.name}`);
 };
 
 const handleSelect = async (backend: Backend) => {
@@ -194,7 +196,11 @@ function fetchVersion() {
   const repo = import.meta.env.VITE_RELEASE_REPO;
   return fetch(`https://api.github.com/repos/${repo}/releases`)
     .then((r) => r.json())
-    .then((r) => (r as { tag_name: string }[]).map((v) => v.tag_name))
+    .then((r) =>
+      (r as { tag_name: string }[])
+        .map((v) => v.tag_name)
+        .filter((v) => v.startsWith("v")),
+    )
     .then((r) => {
       availableVersions.value = r;
     })
@@ -228,6 +234,8 @@ watch(
         initForm.value.newUrl = decoded.url;
         initForm.value.newToken = decoded.token;
         addOpen.value = true;
+      } else {
+        toast.warning("Server already exists, no need to add again");
       }
     } catch {
       // 解码或解析失败时静默忽略
@@ -250,7 +258,7 @@ fetchVersion();
         />
       </Button>
       <Button size="sm" @click="addOpen = true">
-        <Plus class="h-4 w-4 mr-1.5" />
+        <Plus class="mr-1.5 h-4 w-4" />
         {{ t("dashboard.servers.addServer") }}
       </Button>
     </div>
@@ -274,12 +282,19 @@ fetchVersion();
             {{ t("dashboard.servers.noServers") }}
           </TableEmpty>
           <TableRow v-for="backend in backends" :key="backend.url">
-            <TableCell class="font-medium">{{ backend.name }}</TableCell>
+            <TableCell class="font-medium" @click="handleManage(backend)">
+              <RouterLink
+                :to="`/dashboard/servers-detail/${encodeURIComponent(backend.url)}:::${encodeURIComponent(backend.token)}`"
+                class="hover:underline"
+              >
+                {{ backend.name }}
+              </RouterLink>
+            </TableCell>
             <TableCell class="font-mono text-xs text-muted-foreground">
               {{ serverInfo[backend.url]?.uuid ?? "--" }}
             </TableCell>
             <TableCell
-              class="font-mono text-xs max-w-[200px] truncate"
+              class="max-w-[200px] truncate font-mono text-xs"
               :title="backend.url"
             >
               {{ backend.url }}
@@ -302,7 +317,7 @@ fetchVersion();
                       <TooltipTrigger as-child>
                         <Badge
                           variant="outline"
-                          class="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 ml-2"
+                          class="ml-2 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
                         >
                           脚本更新
                           <Info data-icon="inline-start" />
@@ -331,13 +346,13 @@ fetchVersion();
                           latestVersion,
                         ) < 0
                       "
-                      class="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 ml-2"
+                      class="ml-2 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
                       >可更新</Badge
                     >
                     <Badge
                       variant="outline"
                       v-else
-                      class="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 ml-2"
+                      class="ml-2 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
                       >最新版本</Badge
                     >
                   </template>
@@ -370,10 +385,22 @@ fetchVersion();
                   size="icon"
                   variant="ghost"
                   class="h-8 w-8"
-                  title="Upgrade"
+                  title="升级"
                   @click="openChooseVersion(backend.url)"
                 >
                   <CloudDownload class="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  class="h-8 w-8"
+                  title="分享"
+                  @click="
+                    shareBackend = backend;
+                    shareOpen = true;
+                  "
+                >
+                  <Share2 class="h-4 w-4" />
                 </Button>
                 <PopConfirm
                   :title="t('dashboard.servers.refreshConfirmTitle')"
@@ -382,7 +409,12 @@ fetchVersion();
                   :cancel-text="t('dashboard.servers.deleteCancel')"
                   @confirm="afterServerCreate(backend, true)"
                 >
-                  <Button size="icon" variant="ghost" class="h-8 w-8">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    class="h-8 w-8"
+                    title="重新初始化"
+                  >
                     <RefreshCw class="h-4 w-4" />
                   </Button>
                 </PopConfirm>
@@ -390,6 +422,7 @@ fetchVersion();
                   size="icon"
                   variant="ghost"
                   class="h-8 w-8"
+                  title="manage"
                   @click="handleManage(backend)"
                 >
                   <Wrench class="h-4 w-4" />
@@ -427,5 +460,10 @@ fetchVersion();
       v-model:open="changeVersionOpen"
       @select-version="confirmVersion"
     ></VersionDialog>
+    <ShareDialog
+      v-if="shareOpen"
+      :backend="shareBackend as Backend"
+      v-model:open="shareOpen"
+    ></ShareDialog>
   </div>
 </template>

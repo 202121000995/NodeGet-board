@@ -86,6 +86,14 @@ const handleToggleCORS = async (bucket: StaticBucket) => {
   }
 };
 
+const handleToggleEnable = async (bucket: StaticBucket) => {
+  try {
+    await staticBucket.setEnable(bucket.name, !bucket.enable);
+  } catch (e: unknown) {
+    toast.error(e instanceof Error ? e.message : "更新失败");
+  }
+};
+
 const handleBucketDelete = async (name: string) => {
   deletingBucketName.value = name;
   try {
@@ -148,6 +156,7 @@ const handleCreateAndUpload = async (
       path: bucketName,
       is_http_root: false,
       cors: false,
+      enable: true,
     });
     for (const file of files) {
       await bucketFile.uploadFile(bucketName, file.path, file.base64);
@@ -164,8 +173,8 @@ const handleCreateAndUpload = async (
 </script>
 
 <template>
-  <div class="h-full flex flex-col space-y-4">
-    <h1 class="text-2xl font-bold mb-2">静态资源管理</h1>
+  <div class="flex h-full flex-col space-y-4">
+    <h1 class="mb-2 text-2xl font-bold">静态资源管理</h1>
 
     <StaticBucketTable
       :buckets="staticBucket.buckets.value"
@@ -179,6 +188,7 @@ const handleCreateAndUpload = async (
       @delete="handleBucketDelete"
       @toggle-http-root="handleToggleHttpRoot"
       @toggleCORS="handleToggleCORS"
+      @toggleEnable="handleToggleEnable"
       @refresh="staticBucket.fetchList()"
     />
 

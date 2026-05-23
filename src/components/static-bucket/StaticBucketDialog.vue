@@ -33,6 +33,7 @@ const form = ref<StaticBucketInput>({
   path: "",
   is_http_root: false,
   cors: false,
+  enable: true,
 });
 
 watch(
@@ -41,7 +42,13 @@ watch(
     if (val) {
       form.value = props.initial
         ? { ...props.initial }
-        : { name: "", path: "", is_http_root: false, cors: false };
+        : {
+            name: "",
+            path: "",
+            is_http_root: false,
+            cors: false,
+            enable: true,
+          };
     }
   },
 );
@@ -110,6 +117,16 @@ const handleSave = () => {
           <Switch v-model:modelValue="form.cors" />
         </div>
 
+        <div class="flex items-center justify-between">
+          <div>
+            <Label>HTTP 访问</Label>
+            <p class="text-xs text-muted-foreground">
+              启用此 Bucket 的 Http 访问
+            </p>
+          </div>
+          <Switch v-model:modelValue="form.enable" />
+        </div>
+
         <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
       </div>
 
@@ -121,7 +138,7 @@ const handleSave = () => {
           :disabled="loading || !form.name || !form.path"
           @click="handleSave"
         >
-          <Loader2 v-if="loading" class="h-4 w-4 mr-1 animate-spin" />
+          <Loader2 v-if="loading" class="mr-1 h-4 w-4 animate-spin" />
           {{ isEdit ? "保存" : "创建" }}
         </Button>
       </DialogFooter>
