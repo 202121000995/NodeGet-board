@@ -7,13 +7,14 @@
     "dev": "vite",
     "build": "run-s generate:typed-router \"build:app {@}\" --",
     "build:app": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
+    "preview": "pnpm run build-only && wrangler dev",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "format": "prettier --write .",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "prepare": "husky",
-    "generate:typed-router": "vite build --config scripts/typed-router.d.ts/config.ts"
+    "generate:typed-router": "vite build --config scripts/typed-router.d.ts/config.ts",
+    "deploy": "pnpm run build-only && wrangler deploy"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.5",
@@ -25,8 +26,8 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/vue-table": "^8.21.3",
-    "@vue/devtools-api": "6.6.4",
     "@types/qrcode": "^1.5.6",
+    "@vue/devtools-api": "6.6.4",
     "@vueuse/core": "^14.2.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
@@ -57,6 +58,7 @@
     "vue3-colorpicker": "^2.3.0"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.41.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/diff": "^8.0.0",
     "@types/markdown-it": "^14.1.2",
@@ -80,7 +82,8 @@
     "unplugin-vue-router": "^0.19.2",
     "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.5",
-    "vue-tsc": "^3.2.4"
+    "vue-tsc": "^3.2.4",
+    "wrangler": "^4.101.0"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
