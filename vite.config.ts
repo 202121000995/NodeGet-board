@@ -8,6 +8,8 @@ import vueDevTools from "vite-plugin-vue-devtools";
 import tailwindcss from "@tailwindcss/vite";
 import { versionPlugin } from "./versionPlugin";
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // https://vite.dev/config/
 export default defineConfig({
   server: {
@@ -24,6 +26,7 @@ export default defineConfig({
     vueDevTools(),
     tailwindcss(),
     versionPlugin,
+    cloudflare()
   ],
   resolve: {
     alias: {
